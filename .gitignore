@@ -109,6 +109,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+envs/
 
 # Spyder project settings
 .spyderproject
@@ -130,9 +131,10 @@ dmypy.json
 
 # Excluded directories
 Authentication/
-reddisc/
 DynamicMemoryFiles/
 .vscode/
+hidden/
+profile_pic/
 
 # Exclude specific files
 Reddit-Notifications-Using-Discord.code-workspace
