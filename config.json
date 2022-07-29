@@ -1,0 +1,20 @@
+{
+    "metadata": {
+        "version": "v1.0.0",
+        "bot_admin": "zyxwvu28",
+        "reddit_username": "zyx_read_only_bot",
+        "discord_username": ""
+    },
+    "dir_paths": {
+        "users_to_monitor": "DynamicMemoryFiles/users_to_monitor.json",
+        "flairs_to_monitor": "DynamicMemoryFiles/flairs_to_monitor.json",
+        "guilds_conf": "DynamicMemoryFiles/guilds_conf.json",
+        "log_file_dir": "Logs/"
+    },
+    "static_settings": {
+        "skip_existing": true,
+        "pause_after": 2,
+        "min_between_replies": 30,
+        "idle_time": 5
+    }
+}
