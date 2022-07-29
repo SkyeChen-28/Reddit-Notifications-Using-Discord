@@ -38,11 +38,12 @@ def main(**kwargs):
         USERNAME = kwargs['USERNAME']
     except:
         USERNAME = input('Please input your bot\'s Reddit username without the \'u/\':\n')
-    scope_input = 'identity, read'
-    # input(
+    scope_input = 'identity, read, flair'
+    # scope_input = input(
     #     "Enter a comma separated list of scopes, or `*` for all scopes: "
     # )
     scopes = [scope.strip() for scope in scope_input.strip().split(",")]
+    print(f'Selected scopes: {scopes}')
 
     reddit = praw.Reddit(USERNAME,
         redirect_uri="http://localhost:8080",
