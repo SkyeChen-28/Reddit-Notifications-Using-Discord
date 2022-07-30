@@ -37,14 +37,14 @@ class RedDiscConsts():
         
         # Discord related constants
         self.intents = dc.Intents.default()
-        self.COMMAND_PREFIX = '<:9beggingLuz:872186647679230042>' 
+        self.COMMAND_PREFIX = '$' 
         
         # Error messages 
         self.SUBREDDIT_NOT_FOUND = 'Error, subreddit not found!'
         self.RESPONSE_TIMED_OUT = 'Response timed out, please send another command'        
         
-        if enter_fields:
-            if (self.disc_bot_token is None):     
+        if enter_fields and (self.disc_bot_token is None):
+            # if (self.disc_bot_token is None):     
                 warn_msg = 'No bot token in environment variable `REDDISC_DISC_BOT`.\n'
                 warn_msg += 'It\'s recommended that you set that EnvVar as your bot\'s token\n'
                 warn_msg += 'If you don\'t have a bot, create one here: https://discord.com/developers/applications/\n'
@@ -108,6 +108,15 @@ def log_and_print(message: str, level: str = 'info', terminal_print: bool = True
     elif level == 'critical':
         log.critical(log_message)
         
+def utc_str_now() -> str:
+    '''
+    Returns the current time in UTC
+
+    Returns:
+        str: The current datetime
+    '''
+    return str(dt.utcnow()) + ' UTC' 
+        
 def read_config_file(config_dir: str) -> dict:
     '''
     Reads in the given ...config.json file
@@ -135,16 +144,7 @@ def update_config_file(config_dir: str, config_dict: dict) -> None:
 
     config_dict['last_modified_time'] = utc_str_now()
     with open(config_dir, mode = 'w') as fp:
-        json.dump(config_dict, fp)
-        
-def utc_str_now() -> str:
-    '''
-    Returns the current time in UTC
-
-    Returns:
-        str: The current datetime
-    '''
-    return str(dt.utcnow()) + ' UTC'    
+        json.dump(config_dict, fp)   
         
 def read_csv_set_idx(csv_file_path: str, idx_keys: Union[str, list] = None) -> pd.DataFrame:
     '''
@@ -260,7 +260,7 @@ def red_monitoring_update(obj_type: str) -> dict:
                     
     return strs_to_monitor
                     
-async def monitor_new_comments(reddit_instance: pr.Reddit):
+async def monitor_new_comments(reddit_instance: pr.Reddit, discord_instance: commands.Bot):
     # Load config file and necessary variables
     rnd = RedDiscConsts()
     config_path = rnd.config_path
@@ -298,8 +298,49 @@ async def monitor_new_comments(reddit_instance: pr.Reddit):
             continue
         
         comment_url = comment.link_permalink + comment.id
-        # author = comment.author.name
-        log_and_print(comment_url)
+        author_ori = comment.author.name
+        author = author_ori.lower()
+        body = comment.body
+        log_and_print(f'New comment detected: {comment_url}')
+        
+        # Check if user is on monitor list
+        monitored_users = red_monitoring_update('users')
+        if author in monitored_users:
+            srvs_to_send = monitored_users[author].copy()
+            from_sub_ori = comment.subreddit.display_name
+            from_sub = from_sub_ori.lower()
+            for i in srvs_to_send:
+                if from_sub not in guilds_conf[i]['subreddits_to_monitor']:
+                    srvs_to_send.remove(i)
+            
+            # Send the comment to servers listed in srvs_to_send
+            submission = comment.submission
+            await submission.load()
+            msg_body = f'**__r/{from_sub_ori}__**:\n'
+            msg_body += f'New comment from __u/{author_ori}__ on a post titled **{submission.title}**:\n'
+            body = body.replace('\n', '\n> ')
+            msg_body += f'> {body}'
+            msg_body += '\n'
+            
+            # Send parent comment too
+            parent = await comment.parent()
+            await parent.load()
+            if type(parent) == pr.models.reddit.comment.Comment:
+                msg_body += f'This was a reply to __u/{parent.author.name}__ who said:\n'
+                replied_to_body = parent.body
+                replied_to_body = replied_to_body.replace('\n', '\n> ')
+                msg_body += f'> {replied_to_body}'
+                msg_body += '\n'
+            else:
+                msg_body += f'This was a reply to the original post\n'
+            
+            msg_body += f'{comment_url}\n'
+            dc_bot = discord_instance
+            for srv in srvs_to_send:
+                chan_id = int(guilds_conf[srv]['notification_channel'])
+                channel = dc_bot.get_channel(int(chan_id))
+                await channel.send(msg_body)
+        
         # x = comment.parent()
         # import ipdb; ipdb.set_trace()
         # import pdb; pdb.set_trace()
@@ -365,6 +406,7 @@ def main():
         guild_id = str(guild.id)
         guild_info = {
             'name': guild.name,
+            'notification_channel': '',
             'subreddits_to_monitor': {}, # This will contain flairs_to_monitor
             'users_to_monitor': []
         }
@@ -393,6 +435,57 @@ def main():
         
         log_and_print(f'Removed from `{popped_guild_name}`')        
     
+    @bot.command()
+    async def echo(ctx, *text_to_echo: str):
+        '''
+        Replies with `text_to_echo`
+
+        Args:
+            ctx (Discord.Context): An object representing the message that called this command
+            text_to_echo (str): The text you want the bot to echo
+        '''
+        text_to_echo = ' '.join(text_to_echo)
+        log_and_print(f'echo(text_to_echo={text_to_echo}) was called')
+        await ctx.reply(text_to_echo)
+        log_and_print(f'Replied to {ctx.author.name} with: \n{text_to_echo}')
+        
+    @bot.command(brief = 'Sets the notification channel')
+    async def set_channel(ctx, channel_link):
+        '''
+        Sets the channel as the one used for Reddit notifications. 
+        
+        Replies with a confirmation message
+        
+        WARNING: The bot will set the channel even if it has no permissions to
+        read or message in that channel. I am too lazy to add anything to remedy this issue 
+        so just be aware that it exists!
+
+        Args:
+            ctx (Discord.Context): An object representing the message that called this command
+            channel_link (str): The channel you wish to set as the emailing channel. 
+                                Must be a mention of the format `#<channel_name>`
+        '''
+        
+        log_and_print(f'set_channel(channel_link={channel_link}) was called')
+        try:
+            channel_id = channel_link[2:-1]
+            rnd = RedDiscConsts()
+            bot_config = read_config_file(rnd.config_path)
+            guilds_dir = bot_config['dir_paths']['guilds_conf']
+            guilds_conf = read_config_file(guilds_dir)
+            guild = str(ctx.guild.id)
+            guilds_conf[guild]['notification_channel'] = channel_id
+            update_config_file(guilds_dir, guilds_conf)
+            reply_msg = f'{channel_link} has been successfully set as the notification channel!'
+        except:
+            if channel_link[:2] != '<#':
+                reply_msg = f'Couldn\'t recognize channel. Try mentioning the channel by using `#<channel_name>`'
+            else:
+                reply_msg = f'Failed to set as the notification channel. Contact the bot developer for help.'      
+        await ctx.reply(reply_msg)
+        log_and_print(f'Replied to {ctx.author.name} with: \n{reply_msg}')
+        
+        
     @bot.command()
     async def add_subreddit(ctx, subreddit: str):
         # Read in the necessary variables from rnd_config
@@ -621,7 +714,7 @@ def main():
         
     # Run tasks asynchronously
     tasks = [
-        asyncio.ensure_future(monitor_new_comments(red_bot)), # Reddit bot
+        asyncio.ensure_future(monitor_new_comments(red_bot, bot)), # Reddit bot
         asyncio.ensure_future(bot.start(disc_bot_token)), # Discord bot
     ]
     loop = asyncio.get_event_loop()
