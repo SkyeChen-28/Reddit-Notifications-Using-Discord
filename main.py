@@ -33,25 +33,46 @@ y = loop.run_until_complete(x)
 class RedDiscConsts():
     def __init__(self, enter_fields = False):
         self.config_path = 'config.json'
+        self.bot_admin = os.getenv('REDDIT_BOT_ADMIN')
         self.disc_bot_token = os.getenv('REDDISC_DISC_BOT')
-        
+        self.reddit_username = os.getenv('REDDISC_RED_USER')
+                
         # Discord related constants
         self.intents = dc.Intents.default()
         self.COMMAND_PREFIX = '$' 
         
         # Error messages 
         self.SUBREDDIT_NOT_FOUND = 'Error, subreddit not found!'
-        self.RESPONSE_TIMED_OUT = 'Response timed out, please send another command'        
+        self.RESPONSE_TIMED_OUT = 'Response timed out, please send another command' 
+        self.ENVVAR_NOT_SET = 'This was not saved into environment variables, you must do that manually'      
         
-        if enter_fields and (self.disc_bot_token is None):
-            # if (self.disc_bot_token is None):     
+        if enter_fields:
+            if (self.disc_bot_token is None):     
                 warn_msg = 'No bot token in environment variable `REDDISC_DISC_BOT`.\n'
                 warn_msg += 'It\'s recommended that you set that EnvVar as your bot\'s token\n'
                 warn_msg += 'If you don\'t have a bot, create one here: https://discord.com/developers/applications/\n'
                 log_and_print(warn_msg, terminal_print=True)
                 self.disc_bot_token = input('Enter your bot token: ')   
-                log_and_print('This was not saved into environment variables, you must do that manually')  
-
+                log_and_print(self.ENVVAR_NOT_SET)  
+            if (self.bot_admin is None):
+                warn_msg = 'No username set in environment variable `REDDIT_BOT_ADMIN`.\n'
+                warn_msg += 'It\'s recommended that you set that EnvVar as your reddit username\n'
+                log_and_print(warn_msg, terminal_print=True)
+                self.bot_admin = input('Enter the bot_admin username: ')
+                log_and_print(self.ENVVAR_NOT_SET)  
+            if (self.disc_bot_token is None):
+                warn_msg = 'No token set in environment variable `REDDISC_DISC_BOT`.\n'
+                warn_msg += 'It\'s recommended that you set that EnvVar as your Discord bot\'s token\n'
+                log_and_print(warn_msg, terminal_print=True)
+                self.disc_bot_token = input('Enter the disc_bot_token: ')
+                log_and_print(self.ENVVAR_NOT_SET)  
+            if (self.reddit_username is None):
+                warn_msg = 'No token set in environment variable `REDDISC_RED_USER`.\n'
+                warn_msg += 'It\'s recommended that you set that EnvVar as your Reddit bot\'s username\n'
+                log_and_print(warn_msg, terminal_print=True)
+                self.reddit_username = input('Enter the reddit_username: ')
+                log_and_print(self.ENVVAR_NOT_SET)  
+            
     def init_discord_bot(self) -> dc.Client:
         # Initialize a Discord client
         disc_bot = commands.Bot(command_prefix=self.COMMAND_PREFIX, intents = self.intents)
@@ -59,9 +80,9 @@ class RedDiscConsts():
 
     def init_reddit_bot(self) -> pr.Reddit:
         # Load necessary bot config data
-        bot_config = read_config_file(self.config_path)
-        bot_username = bot_config['metadata']['reddit_username']
-        bot_admin = bot_config['metadata']['bot_admin']
+        rdc = RedDiscConsts()
+        bot_username = rdc.reddit_username
+        bot_admin = rdc.bot_admin
         
         # Informative start up messages
         log_and_print('Setting up control for u/' + bot_username, terminal_print=True)
@@ -75,9 +96,6 @@ class RedDiscConsts():
             sys.exit("WARNING! praw.ini file not set up properly!")
             
         return reddit
-            
-        # await monitor_new_comments(reddit)
-
 
 def log_and_print(message: str, level: str = 'info', terminal_print: bool = True) -> None:
     '''
@@ -226,8 +244,8 @@ def red_monitoring_update(obj_type: str) -> dict:
     assert obj_type in ['subreddits', 'flairs', 'users'], assert_msg
     
     # Load config file
-    rnd = RedDiscConsts()
-    config_path = rnd.config_path
+    rdc = RedDiscConsts()
+    config_path = rdc.config_path
     bot_config = read_config_file(config_path)
     guilds_conf = read_config_file(bot_config['dir_paths']['guilds_conf'])
     
@@ -262,8 +280,8 @@ def red_monitoring_update(obj_type: str) -> dict:
                     
 async def monitor_new_comments(reddit_instance: pr.Reddit, discord_instance: commands.Bot):
     # Load config file and necessary variables
-    rnd = RedDiscConsts()
-    config_path = rnd.config_path
+    rdc = RedDiscConsts()
+    config_path = rdc.config_path
     bot_config = read_config_file(config_path)
     pause_after = bot_config['static_settings']['pause_after']
     idle_time = bot_config['static_settings']['idle_time']
@@ -350,20 +368,20 @@ async def monitor_new_comments(reddit_instance: pr.Reddit, discord_instance: com
 def main():
     # red_monitoring_update('flairs')
     
-    rnd = RedDiscConsts(True)
+    rdc = RedDiscConsts(True)
     
     # Initialize Discord Bot
-    bot = rnd.init_discord_bot()
-    disc_bot_token = rnd.disc_bot_token
+    bot = rdc.init_discord_bot()
+    disc_bot_token = rdc.disc_bot_token
     
     # Initialize Reddit Bot
-    red_bot = rnd.init_reddit_bot()
+    red_bot = rdc.init_reddit_bot()
         
     # Configure logging
     root_logger= log.getLogger()
     root_logger.setLevel(log.DEBUG) 
     today = str(date.today())
-    deci_config = read_config_file(rnd.config_path)
+    deci_config = read_config_file(rdc.config_path)
     log_file_path = deci_config["dir_paths"]["log_file_dir"] + f"/rnd_log_{today}.log"
     handler = log.FileHandler(log_file_path, 
                             mode = 'a', 
@@ -398,8 +416,8 @@ def main():
         '''
         
         # Read in the necessary variables from rnd_config
-        rnd = RedDiscConsts()
-        rnd_config = read_config_file(rnd.config_path)
+        rdc = RedDiscConsts()
+        rnd_config = read_config_file(rdc.config_path)
         guilds_config_path = rnd_config['dir_paths']['guilds_conf']
         guilds_conf = read_config_file(guilds_config_path)
         
@@ -423,8 +441,8 @@ def main():
         '''
         
         # Read in the necessary variables from rnd_config
-        rnd = RedDiscConsts()
-        rnd_config = read_config_file(rnd.config_path)
+        rdc = RedDiscConsts()
+        rnd_config = read_config_file(rdc.config_path)
         guilds_config_path = rnd_config['dir_paths']['guilds_conf']
         guilds_conf = read_config_file(guilds_config_path)
         
@@ -469,8 +487,8 @@ def main():
         log_and_print(f'set_channel(channel_link={channel_link}) was called')
         try:
             channel_id = channel_link[2:-1]
-            rnd = RedDiscConsts()
-            bot_config = read_config_file(rnd.config_path)
+            rdc = RedDiscConsts()
+            bot_config = read_config_file(rdc.config_path)
             guilds_dir = bot_config['dir_paths']['guilds_conf']
             guilds_conf = read_config_file(guilds_dir)
             guild = str(ctx.guild.id)
@@ -489,8 +507,8 @@ def main():
     @bot.command()
     async def add_subreddit(ctx, subreddit: str):
         # Read in the necessary variables from rnd_config
-        rnd = RedDiscConsts()
-        rnd_config = read_config_file(rnd.config_path)
+        rdc = RedDiscConsts()
+        rnd_config = read_config_file(rdc.config_path)
         guilds_config_path = rnd_config['dir_paths']['guilds_conf']
         guilds_conf = read_config_file(guilds_config_path)
         
@@ -509,8 +527,8 @@ def main():
     @bot.command()
     async def rm_subreddit(ctx, subreddit: str):
         # Read in the necessary variables from rnd_config
-        rnd = RedDiscConsts()
-        rnd_config = read_config_file(rnd.config_path)
+        rdc = RedDiscConsts()
+        rnd_config = read_config_file(rdc.config_path)
         guilds_config_path = rnd_config['dir_paths']['guilds_conf']
         guilds_conf = read_config_file(guilds_config_path)
         
@@ -530,8 +548,8 @@ def main():
     @bot.command()
     async def add_flair(ctx, subreddit: str = None):
         # Read in the necessary variables from rnd_config
-        rnd = RedDiscConsts()
-        rnd_config = read_config_file(rnd.config_path)
+        rdc = RedDiscConsts()
+        rnd_config = read_config_file(rdc.config_path)
         guilds_config_path = rnd_config['dir_paths']['guilds_conf']
         guilds_conf = read_config_file(guilds_config_path)
         
@@ -549,7 +567,7 @@ def main():
                     await ctx.reply(reply_msg)
                     response = await bot.wait_for('message', timeout = 60)
                     if response.content not in subreddits:
-                        await ctx.send(rnd.SUBREDDIT_NOT_FOUND)
+                        await ctx.send(rdc.SUBREDDIT_NOT_FOUND)
                     else:
                         subreddit = response.content
                         break
@@ -557,7 +575,7 @@ def main():
                     await ctx.reply('Response timed out, please send another command')
         else:
             if subreddit not in subreddits:
-                await ctx.reply(rnd.SUBREDDIT_NOT_FOUND)
+                await ctx.reply(rdc.SUBREDDIT_NOT_FOUND)
                 return
                         
         # Input a list of flairs to monitor
@@ -571,7 +589,7 @@ def main():
             await ctx.reply(reply_msg)
             response = await bot.wait_for('message', timeout = 60)
         except asyncio.TimeoutError:
-            await ctx.reply(rnd.RESPONSE_TIMED_OUT)
+            await ctx.reply(rdc.RESPONSE_TIMED_OUT)
                     
         # Process the flair input
         response_items = response.content.replace(' ', '')
@@ -602,8 +620,8 @@ def main():
     @bot.command()
     async def rm_flair(ctx, subreddit: str = None):
         # Read in the necessary variables from rnd_config
-        rnd = RedDiscConsts()
-        rnd_config = read_config_file(rnd.config_path)
+        rdc = RedDiscConsts()
+        rnd_config = read_config_file(rdc.config_path)
         guilds_config_path = rnd_config['dir_paths']['guilds_conf']
         guilds_conf = read_config_file(guilds_config_path)
         
@@ -621,15 +639,15 @@ def main():
                     await ctx.reply(reply_msg)
                     response = await bot.wait_for('message', timeout = 60)
                     if response.content not in subreddits:
-                        await ctx.send(rnd.SUBREDDIT_NOT_FOUND)
+                        await ctx.send(rdc.SUBREDDIT_NOT_FOUND)
                     else:
                         subreddit = response.content
                         break
                 except asyncio.TimeoutError:
-                    await ctx.reply(rnd.RESPONSE_TIMED_OUT)
+                    await ctx.reply(rdc.RESPONSE_TIMED_OUT)
         else:
             if subreddit not in subreddits:
-                await ctx.reply(rnd.SUBREDDIT_NOT_FOUND)
+                await ctx.reply(rdc.SUBREDDIT_NOT_FOUND)
                 return
         
         # Input a list of flairs to remove
@@ -642,7 +660,7 @@ def main():
             await ctx.reply(reply_msg)
             response = await bot.wait_for('message', timeout = 60)
         except asyncio.TimeoutError:
-            await ctx.reply(rnd.RESPONSE_TIMED_OUT)
+            await ctx.reply(rdc.RESPONSE_TIMED_OUT)
                     
         # Process the flair input
         response_items = response.content.replace(' ', '')
@@ -674,8 +692,8 @@ def main():
     @bot.command()
     async def add_reddit_user(ctx, user: str):
         # Read in the necessary variables from rnd_config
-        rnd = RedDiscConsts()
-        rnd_config = read_config_file(rnd.config_path)
+        rdc = RedDiscConsts()
+        rnd_config = read_config_file(rdc.config_path)
         guilds_config_path = rnd_config['dir_paths']['guilds_conf']
         guilds_conf = read_config_file(guilds_config_path)
         
@@ -694,8 +712,8 @@ def main():
     @bot.command()
     async def rm_reddit_user(ctx, user: str):
         # Read in the necessary variables from rnd_config
-        rnd = RedDiscConsts()
-        rnd_config = read_config_file(rnd.config_path)
+        rdc = RedDiscConsts()
+        rnd_config = read_config_file(rdc.config_path)
         guilds_config_path = rnd_config['dir_paths']['guilds_conf']
         guilds_conf = read_config_file(guilds_config_path)
         
